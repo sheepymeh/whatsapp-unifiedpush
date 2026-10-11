@@ -1,0 +1,35 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - '.github/actions/build-android/**'
+      - '.github/workflows/build-android.yml'
+  pull_request:
+    paths:
+      - 'app/**'
+      - '.github/actions/build-android/**'
+      - '.github/workflows/build-android.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: ${{ github.event_name != 'push' || !startsWith(github.event.head_commit.message, '[release ') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/build-android
+        id: android
+        with:
+          build-type: debug
+          gradle-cache-encryption-key: ${{ secrets.GRADLE_CACHE_ENCRYPTION_KEY }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: whatsapp-unifiedpush-debug
+          path: ${{ steps.android.outputs.apk-path }}
+          if-no-files-found: error

@@ -1,0 +1,33 @@
+name: Build and Push Docker Image
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - '.github/actions/build-server/**'
+      - '.github/workflows/build-server.yml'
+  pull_request:
+    paths:
+      - 'server/**'
+      - '.github/actions/build-server/**'
+      - '.github/workflows/build-server.yml'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    if: ${{ github.event_name != 'push' || !startsWith(github.event.head_commit.message, '[release ') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/build-server
+        with:
+          push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tags: |
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,format=short

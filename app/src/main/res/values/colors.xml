@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="base">#ECE5DD</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="button">#DCF8C6</color>
+    <color name="text">#111B21</color>
+    <color name="muted">#54656F</color>
+    <color name="accent">#075E54</color>
+    <color name="brand">#25D366</color>
+</resources>
