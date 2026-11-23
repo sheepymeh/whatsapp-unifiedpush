@@ -17,7 +17,7 @@ internal object Wake {
     private val WAKE_MESSAGE = "wake".toByteArray()
 
     fun isWake(message: PushMessage) = message.content.contentEquals(WAKE_MESSAGE)
-    fun prefs(context: Context) = context.getSharedPreferences("shim", Context.MODE_PRIVATE)
+    fun prefs(context: Context) = context.getSharedPreferences("wa-up", Context.MODE_PRIVATE)
 
     @Synchronized fun send(context: Context) {
         val prefs = prefs(context)

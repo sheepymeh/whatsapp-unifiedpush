@@ -3,7 +3,7 @@ RUN apk add --no-cache gcc musl-dev ca-certificates
 WORKDIR /src
 COPY go.* ./
 RUN go mod download
-COPY main.go ./
+COPY *.go ./
 RUN go mod tidy && CGO_ENABLED=1 go build -tags netgo,osusergo -trimpath \
     -ldflags='-s -w -linkmode external -extldflags "-static"' \
     -o /wa-up .

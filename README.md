@@ -6,7 +6,8 @@ More reliable WhatsApp notifications without GMS. Wake WhatsApp Android through 
 
 1. Download the APK from [GitHub Releases](https://github.com/sheepymeh/whatsapp-unifiedpush/releases) and install it.
 2. Open the app to register with a UnifiedPush distributor, and copy the endpoint URL.
-3. Start the server:
+3. Set WhatsApp's battery usage to **Unrestricted** (Settings → Apps → WhatsApp → Battery). With "Optimized", Android blocks WhatsApp's network access and background starts when woken by this app, so notifications may not arrive.
+4. Start the server:
 
    ```sh
    docker run -d --name wa-up --restart unless-stopped \
@@ -15,7 +16,7 @@ More reliable WhatsApp notifications without GMS. Wake WhatsApp Android through 
      ghcr.io/sheepymeh/whatsapp-unifiedpush:latest
    ```
 
-4. Run `docker logs -f wa-up` and scan the QR code in WhatsApp → Linked devices.
+5. Run `docker logs -f wa-up` and scan the QR code in WhatsApp → Linked devices.
 
 The server sends only `wake`, not the contents of your messages.
 

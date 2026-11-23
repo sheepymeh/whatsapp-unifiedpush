@@ -20,6 +20,7 @@ import (
 	"github.com/mdp/qrterminal/v3"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
+	waLog "go.mau.fi/whatsmeow/util/log"
 	"go.mau.fi/whatsmeow/types/events"
 )
 
@@ -131,17 +132,22 @@ func run() error {
 		}()
 	}
 
-	client := whatsmeow.NewClient(device, nil)
+	client := whatsmeow.NewClient(device, waLog.Stdout("whatsmeow", "INFO", false))
 	client.EnableAutoReconnect = true
 	client.InitialAutoReconnect = true
+	notify, err := newNotifier(ctx, db, client)
+	if err != nil {
+		return fmt.Errorf("initialize settings: %w", err)
+	}
 	client.AddEventHandler(func(evt any) {
+		notify.handleEvent(ctx, evt)
 		switch e := evt.(type) {
 		case *events.Message:
-			if !e.Info.IsFromMe && e.SourceWebMsg == nil {
+			if !e.Info.IsFromMe && e.SourceWebMsg == nil && notify.shouldWakeMessage(ctx, e) {
 				wake()
 			}
 		case *events.UndecryptableMessage:
-			if !e.Info.IsFromMe {
+			if !e.Info.IsFromMe && notify.shouldWakeUndecryptable(ctx, e) {
 				wake()
 			}
 		case *events.CallOffer, *events.CallOfferNotice:
