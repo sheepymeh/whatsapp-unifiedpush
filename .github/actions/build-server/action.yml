@@ -11,6 +11,9 @@ inputs:
   token:
     description: GitHub token for GHCR authentication
     required: false
+  tar:
+    description: Also export the image to this tar file path
+    required: false
 
 runs:
   using: composite
@@ -31,6 +34,7 @@ runs:
       with:
         context: ./server
         push: ${{ inputs.push }}
+        outputs: ${{ inputs.tar && format('type=docker,dest={0}', inputs.tar) || '' }}
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha,scope=wa-wake

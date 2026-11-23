@@ -31,31 +31,49 @@
             android:textColor="@color/accent" />
 
         <TextView
+            android:id="@+id/sync"
+            style="@style/FullWidth"
+            android:layout_marginTop="8dp"
+            android:textColor="@color/accent" />
+
+        <TextView
             style="@style/FullWidth"
             android:layout_marginTop="24dp"
-            android:text="UnifiedPush subscription"
+            android:text="Server"
             android:textColor="@color/text"
             android:textStyle="bold" />
 
-        <TextView
-            android:id="@+id/endpoint"
+        <EditText
+            android:id="@+id/server_url"
             style="@style/FullWidth"
             android:layout_marginTop="8dp"
             android:background="@drawable/bg_endpoint"
-            android:minHeight="64dp"
+            android:hint="https://example.com/subscription"
+            android:inputType="textUri"
             android:padding="16dp"
-            android:text="Waiting for a UnifiedPush subscription..."
             android:textColor="@color/text"
-            android:fontFamily="monospace"
-            android:textSize="13sp"
-            android:textIsSelectable="true" />
+            android:textColorHint="@color/muted"
+            android:textSize="13sp" />
+
+        <EditText
+            android:id="@+id/server_token"
+            style="@style/FullWidth"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_endpoint"
+            android:hint="Token"
+            android:inputType="textPassword"
+            android:padding="16dp"
+            android:textColor="@color/text"
+            android:textColorHint="@color/muted"
+            android:textSize="13sp" />
 
         <Button
-            android:id="@+id/copy"
+            android:id="@+id/save"
             style="@style/FullWidth"
             android:layout_marginTop="16dp"
-            android:backgroundTint="@color/accent"
-            android:text="Copy subscription"
+            android:background="@drawable/bg_button_primary"
+            android:stateListAnimator="@null"
+            android:text="Save"
             android:textAllCaps="false"
             android:textColor="@color/base" />
 
@@ -63,6 +81,8 @@
             android:id="@+id/register"
             style="@style/FullWidth"
             android:layout_marginTop="8dp"
+            android:background="@drawable/bg_button"
+            android:stateListAnimator="@null"
             android:text="Re-register"
             android:textAllCaps="false" />
 

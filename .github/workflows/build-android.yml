@@ -3,7 +3,7 @@ name: Build Android APK only
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: ['**']
     paths:
       - 'app/**'
       - '.github/actions/build-android/**'

@@ -60,6 +60,7 @@ class WakePushService : PushService() {
         val previous = prefs.getString(Wake.ENDPOINT_KEY, null)
         prefs.edit().putString(Wake.ENDPOINT_KEY, subscription).apply()
         Registration.registered(this)
+        Sync.schedule(this)
         if (previous != subscription) {
             Log.i("wa-up", "UnifiedPush subscription ${if (previous == null) "received" else "changed"}; check sender configuration")
         }

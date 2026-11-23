@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -28,6 +27,7 @@ import (
 
 const (
 	defaultDataDir     = "/data"
+	defaultListenAddr  = ":8080"
 	sessionFilename    = "session.db"
 	dataDirPermissions = 0o700
 	sessionPermissions = 0o600
@@ -41,9 +41,11 @@ const (
 )
 
 type config struct {
-	sub     webpush.Subscription
-	dataDir string
-	token   string
+	dataDir       string
+	token         string
+	listenAddr    string
+	registerToken string
+	publicURL     string
 }
 
 // authClient swaps webpush-go's VAPID Authorization header for the bearer token, if set.
@@ -68,19 +70,20 @@ func main() {
 
 func loadConfig() (config, error) {
 	cfg := config{
-		dataDir: strings.TrimSpace(os.Getenv("DATA_DIR")),
-		token:   os.Getenv("PUSH_BEARER_TOKEN"),
+		dataDir:       strings.TrimSpace(os.Getenv("DATA_DIR")),
+		token:         os.Getenv("PUSH_BEARER_TOKEN"),
+		listenAddr:    strings.TrimSpace(os.Getenv("LISTEN_ADDR")),
+		registerToken: os.Getenv("REGISTER_TOKEN"),
+		publicURL:     strings.TrimRight(strings.TrimSpace(os.Getenv("PUBLIC_URL")), "/"),
 	}
 	if cfg.dataDir == "" {
 		cfg.dataDir = defaultDataDir
 	}
-
-	if err := json.Unmarshal([]byte(os.Getenv("PUSH_SUBSCRIPTION")), &cfg.sub); err != nil || cfg.sub.Keys.P256dh == "" || cfg.sub.Keys.Auth == "" {
-		return config{}, errors.New("PUSH_SUBSCRIPTION must be the JSON copied from the app")
+	if cfg.listenAddr == "" {
+		cfg.listenAddr = defaultListenAddr
 	}
-	u, err := url.Parse(cfg.sub.Endpoint)
-	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Fragment != "" {
-		return config{}, errors.New("PUSH_SUBSCRIPTION endpoint must be an HTTPS URL")
+	if cfg.publicURL != "" && !validHTTPS(cfg.publicURL) {
+		return config{}, errors.New("PUBLIC_URL must be an HTTPS URL")
 	}
 	return cfg, nil
 }
@@ -137,15 +140,28 @@ func run() error {
 			return http.ErrUseLastResponse
 		},
 	}
+	subs, err := newSubscriptions(ctx, db, cfg.registerToken)
+	if err != nil {
+		return fmt.Errorf("initialize subscription: %w", err)
+	}
+	subs.serve(cfg.listenAddr)
+	if subs.cur.Load() == nil || subs.generated {
+		printPairing(cfg.publicURL, subs.token)
+	}
 	var lastWake atomic.Int64
 	wake := func() {
+		sub := subs.cur.Load()
+		if sub == nil {
+			log.Print("No subscription yet; pair the app first")
+			return
+		}
 		now := time.Now().Unix()
 		if now-lastWake.Load() < int64(wakeCooldown/time.Second) {
 			return
 		}
 		lastWake.Store(now)
 		go func() {
-			if err := sendWake(ctx, httpClient, cfg); err != nil {
+			if err := sendWake(ctx, httpClient, cfg.token, sub); err != nil {
 				log.Printf("Wake failed: %v", err)
 			}
 		}()
@@ -189,6 +205,25 @@ func run() error {
 	return nil
 }
 
+// printPairing shows how to pair the app. A generated token is shown at every start, as it cannot be looked up elsewhere.
+func printPairing(publicURL, token string) {
+	if publicURL == "" {
+		log.Printf("No subscription yet. In the app, enter your server URL ending in %s and token %s", subscriptionPath, token)
+		log.Print("Set PUBLIC_URL to also show a QR code for pairing")
+		return
+	}
+	endpoint := publicURL + subscriptionPath
+	link := "wa-up://pair?" + url.Values{"url": {endpoint}, "token": {token}}.Encode()
+	log.Printf("No subscription yet. Scan this QR code with your phone's camera, or enter in the app:\n%sServer URL: %s\nToken: %s", qrText(link), endpoint, token)
+}
+
+// qrText renders a QR code as text so it is logged in one write; other output cannot split it.
+func qrText(content string) string {
+	var b strings.Builder
+	qrterminal.GenerateHalfBlock(content, qrterminal.L, &b)
+	return b.String()
+}
+
 func pair(ctx context.Context, client *whatsmeow.Client) error {
 	for ctx.Err() == nil {
 		qr, err := client.GetQRChannel(ctx)
@@ -201,8 +236,7 @@ func pair(ctx context.Context, client *whatsmeow.Client) error {
 		for item := range qr {
 			switch item.Event {
 			case "code":
-				log.Printf("Scan QR with WhatsApp > Linked devices (valid up to %s)", item.Timeout.Round(time.Second))
-				qrterminal.GenerateHalfBlock(item.Code, qrterminal.L, os.Stdout)
+				log.Printf("Scan QR with WhatsApp > Linked devices (valid up to %s)\n%s", item.Timeout.Round(time.Second), qrText(item.Code))
 			case "success":
 				log.Print("WhatsApp linked successfully")
 				return nil
@@ -224,14 +258,14 @@ func pair(ctx context.Context, client *whatsmeow.Client) error {
 	return ctx.Err()
 }
 
-func sendWake(ctx context.Context, client *http.Client, cfg config) error {
+func sendWake(ctx context.Context, client *http.Client, token string, sub *webpush.Subscription) error {
 	// webpush-go requires VAPID, which UnifiedPush doesn't: a throwaway key will do.
 	priv, pub, err := webpush.GenerateVAPIDKeys()
 	if err != nil {
 		return err
 	}
-	resp, err := webpush.SendNotificationWithContext(ctx, []byte(wakePayload), &cfg.sub, &webpush.Options{
-		HTTPClient:      authClient{client, cfg.token},
+	resp, err := webpush.SendNotificationWithContext(ctx, []byte(wakePayload), sub, &webpush.Options{
+		HTTPClient:      authClient{client, token},
 		TTL:             wakeTTLSeconds,
 		RecordSize:      wakeRecordSize,
 		Urgency:         webpush.UrgencyHigh,

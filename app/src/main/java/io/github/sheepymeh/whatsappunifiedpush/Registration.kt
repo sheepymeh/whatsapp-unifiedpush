@@ -70,6 +70,7 @@ internal object Registration {
 class RegistrationJob : JobService() {
     override fun onStartJob(params: JobParameters): Boolean {
         Registration.register(this)
+        Sync.schedule(this, force = true)
         return false
     }
 

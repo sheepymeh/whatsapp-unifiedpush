@@ -1,6 +1,6 @@
 # WhatsApp UnifiedPush Server
 
-Sends an encrypted (RFC 8291 Web Push) `wake` message to the subscription in `PUSH_SUBSCRIPTION` when a WhatsApp message is received.
+Sends an encrypted (RFC 8291 Web Push) `wake` message to your phone when a WhatsApp message is received. The app uploads its push subscription to `POST /subscription` (bearer token) and the server keeps it in SQLite.
 
 Wakes are only sent for messages your phone will show a notification for. These are skipped:
 
@@ -15,6 +15,8 @@ SQLite stores WhatsApp linked-device/cryptographic state and the mute/archive se
 
 | Environment Variable | Requirement | Description / Default |
 | --- | --- | --- |
-| `PUSH_SUBSCRIPTION` | Required | Web Push subscription JSON copied from the app: `{"endpoint":"https://...","keys":{"p256dh":"...","auth":"..."}}` |
-| `PUSH_BEARER_TOKEN` | Optional | Bearer token to authenticate with UnifiedPush endpoint |
+| `REGISTER_TOKEN` | Optional | Secret the app uses to upload its subscription. It is saved in SQLite, so later runs can omit it. If none was ever set, a random one is generated and logged at every start |
+| `PUBLIC_URL` | Optional | Public HTTPS address of this server; enables the pairing QR code |
+| `LISTEN_ADDR` | Optional | Address for the subscription endpoint, defaults to `:8080`; put TLS in front of it |
+| `PUSH_BEARER_TOKEN` | Optional | Bearer token to authenticate with the UnifiedPush endpoint |
 | `DATA_DIR` | Optional | SQLite store, defaults to `/data` |

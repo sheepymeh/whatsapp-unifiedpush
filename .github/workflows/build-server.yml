@@ -3,7 +3,7 @@ name: Build and Push Docker Image only
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: ['**']
     paths:
       - 'server/**'
       - '.github/actions/build-server/**'
@@ -43,7 +43,14 @@ jobs:
       - uses: ./.github/actions/build-server
         with:
           push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+          tar: ${{ github.ref != 'refs/heads/main' && format('{0}/wa-up.tar', runner.temp) || '' }}
           token: ${{ secrets.GITHUB_TOKEN }}
           tags: |
             type=raw,value=dev,enable=${{ github.ref == 'refs/heads/main' }}
             type=sha,format=short
+      - uses: actions/upload-artifact@v7
+        if: github.ref != 'refs/heads/main'
+        with:
+          name: wa-up-image
+          path: ${{ runner.temp }}/wa-up.tar
+          if-no-files-found: error
