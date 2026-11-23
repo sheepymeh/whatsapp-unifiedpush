@@ -4,7 +4,7 @@ WORKDIR /src
 COPY go.* ./
 RUN go mod download
 COPY *.go ./
-RUN go mod tidy && CGO_ENABLED=1 go build -tags netgo,osusergo -trimpath \
+RUN CGO_ENABLED=1 go build -tags netgo,osusergo -trimpath \
     -ldflags='-s -w -linkmode external -extldflags "-static"' \
     -o /wa-up .
 

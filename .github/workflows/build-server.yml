@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Build and Push Docker Image only
 
 on:
   workflow_dispatch:
@@ -19,7 +19,23 @@ permissions:
   packages: write
 
 jobs:
+  check:
+    if: ${{ github.event_name != 'push' || !startsWith(github.event.head_commit.message, '[release ') }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      - run: go mod tidy -diff
+      - run: go vet ./...
+
   build-and-push:
+    needs: check
     if: ${{ github.event_name != 'push' || !startsWith(github.event.head_commit.message, '[release ') }}
     runs-on: ubuntu-latest
     steps:

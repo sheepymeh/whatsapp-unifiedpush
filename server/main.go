@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -16,30 +17,46 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/SherClockHolmes/webpush-go"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mdp/qrterminal/v3"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
-	waLog "go.mau.fi/whatsmeow/util/log"
 	"go.mau.fi/whatsmeow/types/events"
+	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
 const (
-	defaultDataDir        = "/data"
-	sessionFilename       = "session.db"
-	dataDirPermissions    = 0o700
-	sessionPermissions    = 0o600
-	maxDBConnections      = 1
-	wakeCooldown          = 60 * time.Second
-	pushRequestTimeout    = 12 * time.Second
-	pairingRetryDelay     = 3 * time.Second
-	wakePayload           = "wake"
+	defaultDataDir     = "/data"
+	sessionFilename    = "session.db"
+	dataDirPermissions = 0o700
+	sessionPermissions = 0o600
+	maxDBConnections   = 1
+	wakeCooldown       = 60 * time.Second
+	pushRequestTimeout = 12 * time.Second
+	pairingRetryDelay  = 3 * time.Second
+	wakePayload        = "wake"
+	wakeTTLSeconds     = 60
+	wakeRecordSize     = 128 // default padding is 4096 bytes
 )
 
 type config struct {
-	endpoint string
-	dataDir  string
-	token    string
+	sub     webpush.Subscription
+	dataDir string
+	token   string
+}
+
+// authClient swaps webpush-go's VAPID Authorization header for the bearer token, if set.
+type authClient struct {
+	*http.Client
+	token string
+}
+
+func (c authClient) Do(req *http.Request) (*http.Response, error) {
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	return c.Client.Do(req)
 }
 
 func main() {
@@ -51,17 +68,19 @@ func main() {
 
 func loadConfig() (config, error) {
 	cfg := config{
-		endpoint: strings.TrimSpace(os.Getenv("PUSH_ENDPOINT")),
-		dataDir:  strings.TrimSpace(os.Getenv("DATA_DIR")),
-		token:    os.Getenv("PUSH_BEARER_TOKEN"),
+		dataDir: strings.TrimSpace(os.Getenv("DATA_DIR")),
+		token:   os.Getenv("PUSH_BEARER_TOKEN"),
 	}
 	if cfg.dataDir == "" {
 		cfg.dataDir = defaultDataDir
 	}
 
-	u, err := url.Parse(cfg.endpoint)
+	if err := json.Unmarshal([]byte(os.Getenv("PUSH_SUBSCRIPTION")), &cfg.sub); err != nil || cfg.sub.Keys.P256dh == "" || cfg.sub.Keys.Auth == "" {
+		return config{}, errors.New("PUSH_SUBSCRIPTION must be the JSON copied from the app")
+	}
+	u, err := url.Parse(cfg.sub.Endpoint)
 	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || u.Fragment != "" {
-		return config{}, errors.New("PUSH_ENDPOINT must be an HTTPS URL")
+		return config{}, errors.New("PUSH_SUBSCRIPTION endpoint must be an HTTPS URL")
 	}
 	return cfg, nil
 }
@@ -206,18 +225,23 @@ func pair(ctx context.Context, client *whatsmeow.Client) error {
 }
 
 func sendWake(ctx context.Context, client *http.Client, cfg config) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.endpoint, strings.NewReader(wakePayload))
+	// webpush-go requires VAPID, which UnifiedPush doesn't: a throwaway key will do.
+	priv, pub, err := webpush.GenerateVAPIDKeys()
 	if err != nil {
-		return errors.New("could not create push request")
+		return err
 	}
-	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
-	req.Header.Set("X-UnifiedPush", "1")
-	if cfg.token != "" {
-		req.Header.Set("Authorization", "Bearer "+cfg.token)
-	}
-	resp, err := client.Do(req)
+	resp, err := webpush.SendNotificationWithContext(ctx, []byte(wakePayload), &cfg.sub, &webpush.Options{
+		HTTPClient:      authClient{client, cfg.token},
+		TTL:             wakeTTLSeconds,
+		RecordSize:      wakeRecordSize,
+		Urgency:         webpush.UrgencyHigh,
+		Topic:           "wake",
+		Subscriber:      "https://github.com/sheepymeh/whatsapp-unifiedpush",
+		VAPIDPublicKey:  pub,
+		VAPIDPrivateKey: priv,
+	})
 	if err != nil {
-		return errors.New("HTTP transport error")
+		return errors.New("could not send push request")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {

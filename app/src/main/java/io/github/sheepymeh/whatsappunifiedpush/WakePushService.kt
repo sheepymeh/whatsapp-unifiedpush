@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
 import android.util.Log
+import org.json.JSONObject
 import org.unifiedpush.android.connector.FailedReason
 import org.unifiedpush.android.connector.PushService
 import org.unifiedpush.android.connector.data.PushEndpoint
@@ -16,7 +17,7 @@ internal object Wake {
     const val ENDPOINT_KEY = "endpoint"
     private val WAKE_MESSAGE = "wake".toByteArray()
 
-    fun isWake(message: PushMessage) = message.content.contentEquals(WAKE_MESSAGE)
+    fun isWake(message: PushMessage) = message.decrypted && message.content.contentEquals(WAKE_MESSAGE)
     fun prefs(context: Context) = context.getSharedPreferences("wa-up", Context.MODE_PRIVATE)
 
     @Synchronized fun send(context: Context) {
@@ -45,12 +46,22 @@ class WakePushService : PushService() {
     }
 
     override fun onNewEndpoint(endpoint: PushEndpoint, instance: String) {
+        val keys = endpoint.pubKeySet
         val prefs = Wake.prefs(this)
+        if (keys == null) {
+            prefs.edit().remove(Wake.ENDPOINT_KEY).apply()
+            Log.w("wa-up", "Distributor provided no Web Push keys")
+            return
+        }
+        val subscription = JSONObject()
+            .put("endpoint", endpoint.url)
+            .put("keys", JSONObject().put("p256dh", keys.pubKey).put("auth", keys.auth))
+            .toString()
         val previous = prefs.getString(Wake.ENDPOINT_KEY, null)
-        prefs.edit().putString(Wake.ENDPOINT_KEY, endpoint.url).apply()
+        prefs.edit().putString(Wake.ENDPOINT_KEY, subscription).apply()
         Registration.registered(this)
-        if (previous != endpoint.url) {
-            Log.i("wa-up", "UnifiedPush endpoint ${if (previous == null) "received" else "changed"}; check sender configuration")
+        if (previous != subscription) {
+            Log.i("wa-up", "UnifiedPush subscription ${if (previous == null) "received" else "changed"}; check sender configuration")
         }
     }
 

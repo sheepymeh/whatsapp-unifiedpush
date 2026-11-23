@@ -35,13 +35,13 @@ class MainActivity : Activity() {
         copyButton.setOnClickListener {
             val endpoint = preferences.getString(Wake.ENDPOINT_KEY, null) ?: return@setOnClickListener
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            val clip = ClipData.newPlainText("UnifiedPush endpoint", endpoint)
+            val clip = ClipData.newPlainText("UnifiedPush subscription", endpoint)
             clip.description.extras = PersistableBundle().apply {
                 putBoolean("android.content.extra.IS_SENSITIVE", true)
             }
             clipboard.setPrimaryClip(clip)
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-                Toast.makeText(this, "Endpoint copied", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Subscription copied", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -83,7 +83,7 @@ class MainActivity : Activity() {
 
     private fun showEndpoint() {
         val endpoint = preferences.getString(Wake.ENDPOINT_KEY, null)
-        endpointView.text = endpoint ?: "Waiting for a UnifiedPush endpoint..."
+        endpointView.text = endpoint ?: "Waiting for a UnifiedPush subscription..."
         copyButton.isEnabled = endpoint != null
         val distributor = runCatching { UnifiedPush.getSavedDistributor(this) }.getOrNull()
         val available = runCatching {
@@ -93,7 +93,7 @@ class MainActivity : Activity() {
             distributor == null -> "Choose a push distributor"
             !available -> "Distributor unavailable"
             endpoint == null -> "Waiting for registration"
-            else -> "Endpoint saved"
+            else -> "Subscription saved"
         }
     }
 }

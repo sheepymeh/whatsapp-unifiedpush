@@ -1,6 +1,6 @@
 # WhatsApp UnifiedPush Server
 
-Sends a raw HTTP `wake` POST when a WhatsApp message is received to `PUSH_ENDPOINT`.
+Sends an encrypted (RFC 8291 Web Push) `wake` message to the subscription in `PUSH_SUBSCRIPTION` when a WhatsApp message is received.
 
 Wakes are only sent for messages your phone will show a notification for. These are skipped:
 
@@ -15,6 +15,6 @@ SQLite stores WhatsApp linked-device/cryptographic state and the mute/archive se
 
 | Environment Variable | Requirement | Description / Default |
 | --- | --- | --- |
-| `PUSH_ENDPOINT` | Required | HTTPS UnifiedPush endpoint |
+| `PUSH_SUBSCRIPTION` | Required | Web Push subscription JSON copied from the app: `{"endpoint":"https://...","keys":{"p256dh":"...","auth":"..."}}` |
 | `PUSH_BEARER_TOKEN` | Optional | Bearer token to authenticate with UnifiedPush endpoint |
 | `DATA_DIR` | Optional | SQLite store, defaults to `/data` |
