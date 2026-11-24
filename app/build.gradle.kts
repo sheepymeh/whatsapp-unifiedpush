@@ -42,5 +42,5 @@ android {
 }
 
 dependencies {
-    implementation("org.unifiedpush.android:connector:3.3.5")
+    implementation("org.unifiedpush.android:connector:3.3.6")
 }
