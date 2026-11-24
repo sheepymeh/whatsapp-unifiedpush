@@ -8,7 +8,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
 import android.util.Log
-import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -28,13 +27,20 @@ internal object Sync {
     /** [force] uploads even if already synced. */
     fun schedule(context: Context, force: Boolean = false) {
         if (force) Wake.prefs(context).edit().remove(SYNCED_KEY).apply()
-        context.getSystemService(JobScheduler::class.java).schedule(
+        val result = context.getSystemService(JobScheduler::class.java).schedule(
             JobInfo.Builder(JOB, ComponentName(context, SyncJob::class.java))
                 .setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
                 .setBackoffCriteria(RETRY_MS, JobInfo.BACKOFF_POLICY_EXPONENTIAL)
                 .setPersisted(true)
                 .build())
+        if (result != JobScheduler.RESULT_SUCCESS) {
+            Log.w(TAG, "Could not schedule sync job")
+            setStatus(context, "Could not schedule the upload")
+        }
     }
+
+    private fun setStatus(context: Context, text: String) =
+        Wake.prefs(context).edit().putString(STATUS_KEY, text).apply()
 
     /** Returns whether to retry. */
     fun upload(context: Context): Boolean {
@@ -42,10 +48,14 @@ internal object Sync {
         val subscription = prefs.getString(Wake.ENDPOINT_KEY, null)
         val url = prefs.getString(URL_KEY, null)
         val token = prefs.getString(TOKEN_KEY, null)
-        if (subscription == null || url == null || token == null || !validUrl(url)) return false
+        Log.i(TAG, "Sync job started")
+        if (subscription == null) return false.also { setStatus(context, "Waiting for the push subscription") }
+        if (url == null || token == null) return false // not paired yet
+        if (!validUrl(url)) return false.also { setStatus(context, "Invalid server URL") }
         val state = "$url\n$token\n$subscription"
         if (prefs.getString(SYNCED_KEY, null) == state) return false
 
+        var error: String? = null
         val code = try {
             (URL(url).openConnection() as HttpURLConnection).run {
                 try {
@@ -62,7 +72,9 @@ internal object Sync {
                     disconnect()
                 }
             }
-        } catch (e: IOException) {
+        } catch (e: Exception) {
+            Log.w(TAG, "Subscription upload failed", e)
+            error = e.javaClass.simpleName
             -1
         }
         val ok = code in 200..299
@@ -72,7 +84,7 @@ internal object Sync {
                 ok -> "Subscription synced to server"
                 code == 401 -> "Server rejected the token"
                 code in 400..499 -> "Server rejected the subscription (HTTP $code)"
-                code == -1 -> "Server unreachable; will retry"
+                code == -1 -> "Upload failed ($error); will retry"
                 else -> "Server error (HTTP $code); will retry"
             })
         }.apply()

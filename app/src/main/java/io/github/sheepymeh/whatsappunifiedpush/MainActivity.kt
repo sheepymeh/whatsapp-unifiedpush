@@ -87,8 +87,10 @@ class MainActivity : Activity() {
             Toast.makeText(this, "Enter an https:// URL and a token", Toast.LENGTH_LONG).show()
             return
         }
-        preferences.edit().putString(Sync.URL_KEY, url).putString(Sync.TOKEN_KEY, token).apply()
+        preferences.edit().putString(Sync.URL_KEY, url).putString(Sync.TOKEN_KEY, token).remove(Sync.STATUS_KEY).apply()
         Sync.schedule(this, force = true)
+        val context = applicationContext
+        Thread { Sync.upload(context) }.start() // don't wait for the job to be scheduled
         Toast.makeText(this, "Saved", Toast.LENGTH_SHORT).show()
         showStatus()
     }

@@ -95,11 +95,13 @@ func (s *subscriptions) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte("Bearer "+s.token)) != 1 {
+		log.Printf("Subscription upload from %s rejected: wrong token", r.RemoteAddr)
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	var sub webpush.Subscription
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxSubscriptionBody)).Decode(&sub); err != nil || !validSubscription(&sub) {
+		log.Printf("Subscription upload from %s rejected: invalid subscription", r.RemoteAddr)
 		http.Error(w, "invalid subscription", http.StatusBadRequest)
 		return
 	}
