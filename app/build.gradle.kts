@@ -1,17 +1,17 @@
 plugins {
-    id("com.android.application") version "9.4.1"
+    id("com.android.application") version "9.5.1"
 }
 
 val releaseKeystore = System.getenv("ANDROID_KEYSTORE_FILE")
 
 android {
     namespace = "io.github.sheepymeh.whatsappunifiedpush"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "io.github.sheepymeh.whatsappunifiedpush"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = System.getenv("RELEASE_VERSION_CODE")?.toIntOrNull() ?: 1
         versionName = System.getenv("RELEASE_VERSION") ?: "0.1.0"
     }
@@ -42,5 +42,5 @@ android {
 }
 
 dependencies {
-    implementation("org.unifiedpush.android:connector:3.3.5")
+    implementation("org.unifiedpush.android:connector:3.3.6")
 }

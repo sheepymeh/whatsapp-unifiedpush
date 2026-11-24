@@ -161,7 +161,7 @@ func run() error {
 		}
 		lastWake.Store(now)
 		go func() {
-			if err := sendWake(ctx, httpClient, cfg.token, sub); err != nil {
+			if err := sendWake(ctx, httpClient, cfg.token, subs.vapidPriv, subs.vapidPub, sub); err != nil {
 				log.Printf("Wake failed: %v", err)
 			}
 		}()
@@ -258,12 +258,8 @@ func pair(ctx context.Context, client *whatsmeow.Client) error {
 	return ctx.Err()
 }
 
-func sendWake(ctx context.Context, client *http.Client, token string, sub *webpush.Subscription) error {
-	// webpush-go requires VAPID, which UnifiedPush doesn't: a throwaway key will do.
-	priv, pub, err := webpush.GenerateVAPIDKeys()
-	if err != nil {
-		return err
-	}
+// sendWake signs with a VAPID key, which UnifiedPush doesn't require but webpush-go does.
+func sendWake(ctx context.Context, client *http.Client, token, vapidPriv, vapidPub string, sub *webpush.Subscription) error {
 	resp, err := webpush.SendNotificationWithContext(ctx, []byte(wakePayload), sub, &webpush.Options{
 		HTTPClient:      authClient{client, token},
 		TTL:             wakeTTLSeconds,
@@ -271,8 +267,8 @@ func sendWake(ctx context.Context, client *http.Client, token string, sub *webpu
 		Urgency:         webpush.UrgencyHigh,
 		Topic:           "wake",
 		Subscriber:      "https://github.com/sheepymeh/whatsapp-unifiedpush",
-		VAPIDPublicKey:  pub,
-		VAPIDPrivateKey: priv,
+		VAPIDPublicKey:  vapidPub,
+		VAPIDPrivateKey: vapidPriv,
 	})
 	if err != nil {
 		return errors.New("could not send push request")
