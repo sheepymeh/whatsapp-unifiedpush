@@ -30,7 +30,6 @@ type notifier struct {
 	client       *whatsmeow.Client
 	db           *sql.DB
 	keepArchived atomic.Int32
-	syncing      atomic.Bool
 }
 
 func newNotifier(ctx context.Context, db *sql.DB, client *whatsmeow.Client) (*notifier, error) {
@@ -68,23 +67,6 @@ func (n *notifier) handleEvent(ctx context.Context, evt any) {
 		if e.Name == appstate.WAPatchRegularLow && n.keepArchived.Load() == keepArchivedUnknown {
 			n.setKeepArchived(ctx, keepArchivedOff)
 		}
-	case *events.Connected:
-		go n.syncKeepArchived(ctx)
-	}
-}
-
-// syncKeepArchived refetches the setting for sessions synced before it was stored.
-func (n *notifier) syncKeepArchived(ctx context.Context) {
-	if n.keepArchived.Load() != keepArchivedUnknown || !n.syncing.CompareAndSwap(false, true) {
-		return
-	}
-	defer n.syncing.Store(false)
-	version, _, err := n.client.Store.AppState.GetAppStateVersion(ctx, string(appstate.WAPatchRegularLow))
-	if err != nil || version == 0 {
-		return // not synced yet; the initial sync will include it
-	}
-	if err := n.client.FetchAppState(ctx, appstate.WAPatchRegularLow, true, false); err != nil {
-		log.Printf("Fetching archive settings failed: %v", err)
 	}
 }
 
@@ -103,6 +85,12 @@ func (n *notifier) shouldWakeMessage(ctx context.Context, e *events.Message) boo
 			n.shouldWakeChat(ctx, &e.Info, false)
 	}
 	return n.shouldWakeChat(ctx, &e.Info, n.mayBeDirect(msg))
+}
+
+// isLinkPreviewRequest matches a peer message from our own account, which the usual filters would drop.
+func isLinkPreviewRequest(msg *waE2E.Message) bool {
+	return msg.GetProtocolMessage().GetPeerDataOperationRequestMessage().GetPeerDataOperationRequestType() ==
+		waE2E.PeerDataOperationRequestType_GENERATE_LINK_PREVIEW
 }
 
 func (n *notifier) shouldWakeUndecryptable(ctx context.Context, e *events.UndecryptableMessage) bool {

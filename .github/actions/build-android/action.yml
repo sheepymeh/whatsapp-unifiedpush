@@ -84,7 +84,6 @@ runs:
             : "${ANDROID_KEY_PASSWORD:?Missing key password}"
             gradle --no-daemon assembleRelease
             ;;
-          *) echo "Invalid build type: ${{ inputs.build-type }}" >&2; exit 1 ;;
         esac
 
     - name: Remove signing key

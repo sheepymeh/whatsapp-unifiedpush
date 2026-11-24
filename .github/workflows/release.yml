@@ -29,13 +29,11 @@ jobs:
             exit 1
           fi
           version="${BASH_REMATCH[1]}"
-          tag="$version"
-          if git ls-remote --tags origin "refs/tags/$tag" | grep -q .; then
-            echo "Tag $tag already exists" >&2
+          if git ls-remote --tags origin "refs/tags/$version" | grep -q .; then
+            echo "Tag $version already exists" >&2
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       - uses: ./.github/actions/build-android
         id: android
@@ -52,7 +50,7 @@ jobs:
       - name: Name release APK
         run: |
           mkdir -p dist
-          cp "${{ steps.android.outputs.apk-path }}" "dist/whatsapp-unifiedpush-${{ steps.version.outputs.tag }}.apk"
+          cp "${{ steps.android.outputs.apk-path }}" "dist/whatsapp-unifiedpush-${{ steps.version.outputs.version }}.apk"
 
       - uses: actions/upload-artifact@v7
         with:
@@ -77,8 +75,8 @@ jobs:
         run: |
           # Commit body (minus trailers) is prepended to the generated notes
           tail -n +2 <<< "$COMMIT_MESSAGE" | grep -viE '^(co-authored-by|claude-session|signed-off-by):' > "$RUNNER_TEMP/notes.md" || true
-          gh release create "${{ steps.version.outputs.tag }}" dist/*.apk \
+          gh release create "${{ steps.version.outputs.version }}" dist/*.apk \
             --target "$GITHUB_SHA" \
-            --title "WhatsApp UnifiedPush ${{ steps.version.outputs.tag }}" \
+            --title "WhatsApp UnifiedPush ${{ steps.version.outputs.version }}" \
             --generate-notes \
             --notes-file "$RUNNER_TEMP/notes.md"

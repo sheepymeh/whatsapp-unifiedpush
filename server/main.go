@@ -12,7 +12,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -32,7 +31,6 @@ const (
 	dataDirPermissions = 0o700
 	sessionPermissions = 0o600
 	maxDBConnections   = 1
-	wakeCooldown       = 60 * time.Second
 	pushRequestTimeout = 12 * time.Second
 	pairingRetryDelay  = 3 * time.Second
 	wakePayload        = "wake"
@@ -148,24 +146,13 @@ func run() error {
 	if subs.cur.Load() == nil || subs.generated {
 		printPairing(cfg.publicURL, subs.token)
 	}
-	var lastWake atomic.Int64
-	wake := func() {
+	wake := newWaker(func(ctx context.Context, kind wakeKind) error {
 		sub := subs.cur.Load()
 		if sub == nil {
-			log.Print("No subscription yet; pair the app first")
-			return
+			return errNoSubscription
 		}
-		now := time.Now().Unix()
-		if now-lastWake.Load() < int64(wakeCooldown/time.Second) {
-			return
-		}
-		lastWake.Store(now)
-		go func() {
-			if err := sendWake(ctx, httpClient, cfg.token, subs.vapidPriv, subs.vapidPub, sub); err != nil {
-				log.Printf("Wake failed: %v", err)
-			}
-		}()
-	}
+		return sendWake(ctx, httpClient, cfg.token, subs.vapidPriv, subs.vapidPub, sub, kind)
+	})
 
 	client := whatsmeow.NewClient(device, waLog.Stdout("whatsmeow", "INFO", false))
 	client.EnableAutoReconnect = true
@@ -178,15 +165,19 @@ func run() error {
 		notify.handleEvent(ctx, evt)
 		switch e := evt.(type) {
 		case *events.Message:
-			if !e.Info.IsFromMe && e.SourceWebMsg == nil && notify.shouldWakeMessage(ctx, e) {
-				wake()
+			if isLinkPreviewRequest(e.Message) {
+				// Logged to see whether WhatsApp ever delivers this.
+				log.Printf("Link preview request from %s", e.Info.Sender)
+				wake.message(ctx)
+			} else if !e.Info.IsFromMe && e.SourceWebMsg == nil && notify.shouldWakeMessage(ctx, e) {
+				wake.message(ctx)
 			}
 		case *events.UndecryptableMessage:
 			if !e.Info.IsFromMe && notify.shouldWakeUndecryptable(ctx, e) {
-				wake()
+				wake.message(ctx)
 			}
 		case *events.CallOffer, *events.CallOfferNotice:
-			wake()
+			wake.call(ctx)
 		case *events.LoggedOut:
 			log.Print("Linked device logged out; remove session.db to pair again")
 		}
@@ -259,13 +250,13 @@ func pair(ctx context.Context, client *whatsmeow.Client) error {
 }
 
 // sendWake signs with a VAPID key, which UnifiedPush doesn't require but webpush-go does.
-func sendWake(ctx context.Context, client *http.Client, token, vapidPriv, vapidPub string, sub *webpush.Subscription) error {
+func sendWake(ctx context.Context, client *http.Client, token, vapidPriv, vapidPub string, sub *webpush.Subscription, kind wakeKind) error {
 	resp, err := webpush.SendNotificationWithContext(ctx, []byte(wakePayload), sub, &webpush.Options{
 		HTTPClient:      authClient{client, token},
 		TTL:             wakeTTLSeconds,
 		RecordSize:      wakeRecordSize,
-		Urgency:         webpush.UrgencyHigh,
-		Topic:           "wake",
+		Urgency:         kind.urgency,
+		Topic:           kind.name,
 		Subscriber:      "https://github.com/sheepymeh/whatsapp-unifiedpush",
 		VAPIDPublicKey:  vapidPub,
 		VAPIDPrivateKey: vapidPriv,
@@ -277,6 +268,6 @@ func sendWake(ctx context.Context, client *http.Client, token, vapidPriv, vapidP
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return fmt.Errorf("push server returned HTTP %d", resp.StatusCode)
 	}
-	log.Print("Wake sent")
+	log.Printf("Wake sent (%s)", kind.name)
 	return nil
 }

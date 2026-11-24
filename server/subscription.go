@@ -118,10 +118,6 @@ func validSubscription(sub *webpush.Subscription) bool {
 }
 
 func (s *subscriptions) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 	if subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte("Bearer "+s.token)) != 1 {
 		log.Printf("Subscription upload from %s rejected: wrong token", r.RemoteAddr)
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -146,7 +142,7 @@ func (s *subscriptions) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *subscriptions) serve(addr string) {
 	mux := http.NewServeMux()
-	mux.Handle(subscriptionPath, s)
+	mux.Handle("POST "+subscriptionPath, s)
 	srv := &http.Server{Addr: addr, Handler: mux, ReadTimeout: pushRequestTimeout}
 	go func() {
 		log.Fatalf("Subscription listener failed: %v", srv.ListenAndServe())

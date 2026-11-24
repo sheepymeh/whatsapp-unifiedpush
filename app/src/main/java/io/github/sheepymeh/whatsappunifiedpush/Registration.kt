@@ -12,7 +12,6 @@ import android.util.Log
 import org.unifiedpush.android.connector.UnifiedPush
 
 internal object Registration {
-    private const val TAG = "wa-up"
     private const val DAILY = 42001
     private const val RETRY = 42002
     private const val DAY_MS = 24 * 60 * 60 * 1000L
@@ -79,9 +78,6 @@ class RegistrationJob : JobService() {
 
 class StartReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED ||
-            intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
-            Registration.start(context)
-        }
+        Registration.start(context)
     }
 }

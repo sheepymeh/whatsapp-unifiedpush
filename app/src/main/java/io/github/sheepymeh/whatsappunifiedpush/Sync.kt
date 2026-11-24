@@ -13,10 +13,10 @@ import java.net.URL
 
 /** Uploads the push subscription to the server. */
 internal object Sync {
-    private const val TAG = "wa-up"
     private const val JOB = 42003
     private const val RETRY_MS = 60_000L
     private const val TIMEOUT_MS = 15_000
+    private const val NO_RESPONSE = -1
     const val URL_KEY = "serverUrl"
     const val TOKEN_KEY = "serverToken"
     const val STATUS_KEY = "syncStatus"
@@ -75,7 +75,7 @@ internal object Sync {
         } catch (e: Exception) {
             Log.w(TAG, "Subscription upload failed", e)
             error = e.javaClass.simpleName
-            -1
+            NO_RESPONSE
         }
         val ok = code in 200..299
         prefs.edit().apply {
@@ -84,12 +84,12 @@ internal object Sync {
                 ok -> "Subscription synced to server"
                 code == 401 -> "Server rejected the token"
                 code in 400..499 -> "Server rejected the subscription (HTTP $code)"
-                code == -1 -> "Upload failed ($error); will retry"
+                code == NO_RESPONSE -> "Upload failed ($error); will retry"
                 else -> "Server error (HTTP $code); will retry"
             })
         }.apply()
         Log.i(TAG, "Subscription upload returned $code")
-        return code == -1 || code >= 500
+        return code == NO_RESPONSE || code >= 500
     }
 }
 

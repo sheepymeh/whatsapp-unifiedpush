@@ -29,9 +29,7 @@ android {
 
     buildTypes {
         getByName("release") {
-            if (!releaseKeystore.isNullOrBlank()) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 
