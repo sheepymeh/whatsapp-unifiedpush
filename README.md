@@ -23,4 +23,17 @@ More reliable WhatsApp notifications without GMS. Wake WhatsApp Android through 
 
 The app uploads its push subscription to the server, and again whenever the endpoint changes. The server sends only `wake`, not the contents of your messages, as an encrypted Web Push message.
 
+## WhatsApp wake intent
+
+To wake WhatsApp, the app sends this explicit broadcast intent:
+
+```text
+action:   com.facebook.rti.fbns.intent.RECEIVE
+component: com.whatsapp/com.whatsapp.infra.push.WAFbnsPreloadReceiver
+category: com.whatsapp
+flag:     FLAG_INCLUDE_STOPPED_PACKAGES
+```
+
+This intent was tested against WhatsApp **2.26.45.99**. It is an internal WhatsApp implementation detail, so it may be removed in a future build or its behavior may change without notice.
+
 Unofficial project; not affiliated with WhatsApp. WhatsApp protocol changes or account restrictions may affect operation.
