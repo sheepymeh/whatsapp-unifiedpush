@@ -11,7 +11,7 @@ Wakes are only sent for messages your phone will show a notification for. These 
 Calls always wake the phone.
 
 The user session is stored in `/data/session.db`.
-SQLite stores WhatsApp linked-device/cryptographic state and the mute/archive settings used to filter wakes. No chat history is saved.
+SQLite stores WhatsApp linked-device/cryptographic state, the push subscription, the VAPID key pair used to sign wakes, and the mute/archive settings used to filter wakes. No chat history is saved.
 
 | Environment Variable | Requirement | Description / Default |
 | --- | --- | --- |

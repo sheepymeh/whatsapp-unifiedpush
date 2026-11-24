@@ -23,6 +23,8 @@ const (
 	authLength          = 16
 	tokenKey            = "token"
 	subscriptionKey     = "subscription"
+	vapidPrivateKey     = "vapid_private_key"
+	vapidPublicKey      = "vapid_public_key"
 )
 
 // subscriptions holds the subscription uploaded by the app.
@@ -31,6 +33,8 @@ type subscriptions struct {
 	token     string
 	generated bool // REGISTER_TOKEN unset: the user may not know the token
 	cur       atomic.Pointer[webpush.Subscription]
+	vapidPriv string
+	vapidPub  string
 }
 
 func (s *subscriptions) get(ctx context.Context, key string) (string, error) {
@@ -65,6 +69,9 @@ func newSubscriptions(ctx context.Context, db *sql.DB, token string) (*subscript
 	if err := s.set(ctx, tokenKey, s.token); err != nil {
 		return nil, err
 	}
+	if err := s.loadVAPIDKeys(ctx); err != nil {
+		return nil, err
+	}
 	data, err := s.get(ctx, subscriptionKey)
 	if err != nil {
 		return nil, err
@@ -74,6 +81,27 @@ func newSubscriptions(ctx context.Context, db *sql.DB, token string) (*subscript
 		s.cur.Store(&sub)
 	}
 	return s, nil
+}
+
+// loadVAPIDKeys loads the VAPID key pair, generating and saving one on first run.
+func (s *subscriptions) loadVAPIDKeys(ctx context.Context) error {
+	var err error
+	if s.vapidPriv, err = s.get(ctx, vapidPrivateKey); err != nil {
+		return err
+	}
+	if s.vapidPub, err = s.get(ctx, vapidPublicKey); err != nil {
+		return err
+	}
+	if s.vapidPriv != "" && s.vapidPub != "" {
+		return nil
+	}
+	if s.vapidPriv, s.vapidPub, err = webpush.GenerateVAPIDKeys(); err != nil {
+		return err
+	}
+	if err := s.set(ctx, vapidPrivateKey, s.vapidPriv); err != nil {
+		return err
+	}
+	return s.set(ctx, vapidPublicKey, s.vapidPub)
 }
 
 func validHTTPS(s string) bool {
