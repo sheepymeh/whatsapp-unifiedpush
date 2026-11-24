@@ -1,5 +1,5 @@
 plugins {
-    id("com.android.application") version "9.4.1"
+    id("com.android.application") version "9.5.1"
 }
 
 val releaseKeystore = System.getenv("ANDROID_KEYSTORE_FILE")
